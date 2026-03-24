@@ -111,30 +111,31 @@ Scripts use compound task ID: `<task>/<subtask>` (for example: `my-project/01-ba
 cd /path/to/repo
 git worktree add -b feature/my-task /tmp/my-task base-branch
 
-# Write task prompt
-cat > /tmp/my-task-prompt.md << 'EOF'
-## Task Title
+# Write task prompt using the TASK.md v2 template
+cp <SKILL_DIR>/templates/TASK.md /tmp/my-task-prompt.md
+# Edit the template: fill in objective, constraints, build commands, file boundaries
 
-Description of what to build/fix.
-
-## Scope
-- ✅ Files to modify: src/foo.sol, src/bar.sol
-- 🚫 Do NOT modify: src/core/, test/ (unless adding new tests)
-
-## Build Instructions
-- Build: <your build command>
-- Test: <your test command>
-
-## Design Decisions (confirmed)
-- Decision 1: reason
-- Decision 2: reason
-EOF
+# Copy the appropriate REVIEW_CONTEXT template to the worktree
+cp <SKILL_DIR>/templates/REVIEW_CONTEXT.md /tmp/my-task/REVIEW_CONTEXT.md
+# Edit it: set project_type, diff_scope, architecture context, confirmed decisions
 ```
+
+**TASK.md v2 template** (`templates/TASK.md`): includes reference implementation snippets, security/design constraints, confirmed decisions, build instructions, and file boundaries. Higher-quality prompts reduce review rounds significantly.
+
+**REVIEW_CONTEXT.md**: placed in the worktree root, read by `review-pr.sh` to determine project type and audit methodology. Templates available for different project types:
+- `templates/REVIEW_CONTEXT.md` — generic
+- `templates/REVIEW_CONTEXT-backend.md` — backend projects
+- `templates/REVIEW_CONTEXT-frontend.md` — frontend projects
+
+**For multi-layer projects** (contract → backend → frontend), also copy `templates/CROSS_LAYER_INTERFACE.md` to your project docs. Each layer fills its section after completion; downstream developers read before starting.
+
+**Safety gate**: before spawning, output the full TASK.md content and spawn command for operator review. This allows catching issues before the agent runs.
 
 **TASK.md best practices:**
 
 - Include explicit file boundaries (what to touch, what not to)
 - Include build/test commands (avoid full compilation)
+- Paste reference implementation snippets directly (not just file paths)
 - List confirmed design decisions (reduces review false positives)
 - `spawn-agent.sh` auto-appends the "commit all changes" instruction
 
@@ -180,7 +181,7 @@ Triggered automatically by `check-agents.sh` when the agent completes (has new c
 bash <SKILL_DIR>/scripts/review-pr.sh <worktree-path> <base-branch>
 ```
 
-Review flow (4-lane parallel):
+Review flow (4-lane parallel, reads `REVIEW_CONTEXT.md` from worktree for project-specific audit methodology):
 
 1. Push branch + create PR
 2. Launch 4 reviewers in parallel tmux sessions:
